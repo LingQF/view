@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html, #app {
+            height: 100%;
+        }
+        .change-box {
+            padding: 20px;
+            height: 100%;
+            display: flex;
+            justify-content: space-between;
+        }
+        textarea, .target {
+            padding: 4px;
+            width: 46%;
+            height: 90%;
+        }
+        .target {
+            border: 1px solid black;
+            font-size: 14px;
+            -webkit-writing-mode: horizontal-tb !important;
+            font-family: monospace;
+            text-rendering: auto;
+            color: -internal-light-dark(black, white);
+            letter-spacing: normal;
+            word-spacing: normal;
+            line-height: normal;
+            text-transform: none;
+            text-indent: 0px;
+            text-shadow: none;
+            display: inline-block;
+            text-align: start;
+            appearance: auto;
+            -webkit-rtl-ordering: logical;
+            resize: auto;
+            cursor: text;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            background-color: -internal-light-dark(rgb(255, 255, 255), rgb(59, 59, 59));
+            column-count: initial !important;
+            margin: 0em;
+            border-width: 1px;
+            border-style: solid;
+            border-color: -internal-light-dark(rgb(118, 118, 118), rgb(133, 133, 133));
+            border-image: initial;
+            overflow-y: auto;
+        }
+        .high-item {
+            border: 1px solid red;
+        }
+        .copy {
+            width: 200px;
+            height: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <button @click="copy" class="copy">复制</button>
+        <span>{{tips}}</span>
+        <div class="change-box">
+            <textarea name="" id="" cols="30" rows="10" v-model="oldMsg" @scroll="leftScroll" ref="left"></textarea>
+            <div class="center-box"></div>
+            <div class="target" id="target" v-html="newMsg" @scroll="targetScroll" ref="right"></div>
+        </div>
+    </div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/vue"></script>
+<script>
+    (function () {
+        var app = new Vue({
+            el: '#app',
+            data: {
+                tips: '',
+                oldMsg: '',
+                newMsg: '',
+                colorObj: {
+                    '#2668ff': '$bi-primary-color',
+                    '#67c23a': '$bi-success-color',
+                    '#ff7d00': '$bi-warning-color',
+                    '#f53f3f': '$bi-danger-color',
+                    '#f2f3f5': '$bi-info-color',
+                    '#E8F3FF': '$bi-upload-hover-bg',
+                    '#C8CDD5': '$bi-upload-add-icon',
+                    '#e8f7ff': '$bi-tag-primary-bg-color',
+                    '#e8ffea': '$bi-tag-success-bg-color',
+                    '#fdf6ec': '$bi-tag-warning-bg-color',
+                    '#ffece8': '$bi-tag-danger-bg-color',
+                    '#f4f4f5': '$bi-tag-info-bg-color',
+                    '#909399': '$bi-tag-info-color',
+                    '#f7f8fa': '$bi-common-bg-color',
+                    '#eeeff3': '$bi-common-input-border-color',
+                    '#1d2129': '$bi-text-primary-color',
+                    '#4e5969': '$bi-text-common-color',
+                    '#86909c': '$bi-text-gray-color'
+                }
+            },
+
+            created () {
+                for (let key in this.colorObj) {
+                    const item = this.colorObj[key]
+                    const bigKey = key.toUpperCase()
+                    const smallKey = key.toLowerCase()
+                    this.colorObj[bigKey] = item
+                    this.colorObj[smallKey] = item
+                }
+            },
+
+            watch: {
+                oldMsg (val) {
+                    let copyVal = val
+                    for (let key in this.colorObj) {
+                        const item = this.colorObj[key]
+                        const index = val.indexOf(key)
+                        if (index !== -1) {
+                            copyVal = copyVal.replace(new RegExp(key,"gm"), item)
+                            val = val.replace(new RegExp(key,"gm"), `<span class="high-item" style="color: ${key};">${item}</span>`)
+                        }
+                    }
+                    this.copyVal = copyVal
+                    this.newMsg = val
+                }
+            },
+
+            mounted () {
+                this.$refs.left.focus()
+            },
+
+            methods: {
+                copy () {
+                    if (this.tips) return
+                    var div = document.getElementById('target');
+                    if (document.body.createTextRange) {
+                        var range = document.body.createTextRange();
+                        range.moveToElementText(div);
+                        range.select();
+                    } else if (window.getSelection) {
+                        var selection = window.getSelection();
+                        var range = document.createRange();
+                        range.selectNodeContents(div);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }
+                    document.execCommand("Copy"); // 执行浏览器复制命令
+                    this.tips = '复制成功'
+                    setTimeout(() => {
+                        this.tips = ''
+                    }, 2000);
+                },
+
+                targetScroll (e) {
+                    let scrollTop = e.target.scrollTop
+                    this.$refs.left.scrollTop = scrollTop
+                },
+
+                leftScroll (e) {
+                    let scrollTop = e.target.scrollTop
+                    this.$refs.right.scrollTop = scrollTop
+                }
+            },
+        })
+    })()
+</script>
+</html>
