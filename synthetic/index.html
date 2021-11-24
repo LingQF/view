@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>千图合成</title>
+    <style>
+        #showBox {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .flex-box {
+            display: flex;
+        }
+        .flex-right {
+            margin-left: 20px;
+            flex: 1;
+        }
+        canvas {
+            width: 800px;
+            height: 800px;
+        }
+        .file-box {
+            position: relative;
+            width: 100px;
+            height: 32px;
+            border-radius: 4px;
+            background-color: #2d8cf0;
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+        .file-box>span {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        input {
+            cursor: pointer;
+            position: absolute;
+            z-index: 1;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            opacity: 0;
+        }
+        .button-box {
+            margin-bottom: 20px;
+        }
+        button {
+            cursor: pointer;
+            width: 100px;
+            height: 32px;
+            border: none;
+            border-radius: 4px;
+            background-color: #2d8cf0;
+            color: #ffffff;
+        }
+        button.synthetic {
+            background-color: #19be6b;
+        }
+    </style>
+    </head>
+    <body>
+        <div class="flex-box">
+            <div class="flex-left">
+                <canvas id="myCanvas" style="border:1px solid #d3d3d3;">
+                    您的浏览器不支持 HTML5 canvas 标签。
+                </canvas>
+                <div id="showBox"></div>
+            </div>
+            <div class="flex-right">
+                <div style="display: flex;align-items: center;">
+                    <div class="file-box">
+                        <input type="file" id="file" accept=".jpg,.jpeg,.png">
+                        <span>上传参照</span>
+                    </div>
+                    <span id="fileName" style="margin-bottom: 20px;margin-left: 20px;"></span>
+                </div>
+                <div style="display: flex;align-items: center;">
+                    <div class="file-box">
+                        <input type="file" id="materialFile" accept=".jpg,.jpeg,.png" multiple>
+                        <span>上传素材</span>
+                    </div>
+                    <span id="total" style="margin-bottom: 20px;margin-left: 20px;">0 / 0</span>
+                </div>
+                <div class="button-box"><button class="synthetic" onclick="synthetic()">合成</button></div>
+                <!-- <div class="button-box"><button onclick="copy()">复制</button></div>
+                <div class="button-box"><button onclick="clearCanvas()">清除</button></div> -->
+                <div class="button-box"><button onclick="downLoad()">下载</button></div>
+            </div>
+        </div>
+    </body>
+    <script>
+        // 分辨率
+        var BASE_ZOOM = 10
+        var BLOCK_WIDTH = 4 * BASE_ZOOM
+        var CANVAS_WIDTH = 800 * BASE_ZOOM
+
+        var canvas = document.getElementById("myCanvas");
+        var ctx = canvas.getContext("2d");
+        canvas.width = CANVAS_WIDTH
+        canvas.height = CANVAS_WIDTH
+        var fileName = ''
+        var fileDom = document.getElementById('file')
+        fileDom.onchange = function (e) {
+            const file = e.target.files[0]
+            fileName = file.name
+            document.getElementById('fileName').innerText = fileName
+            let tempUrl = window.URL.createObjectURL(file)
+            const img = document.createElement('img')
+            img.src = tempUrl
+            img.onload = function () {
+                let width = img.width
+                let height = img.height
+                let startX = 0
+                let startY= 0
+                if (width > height) {
+                    height =  height / width * CANVAS_WIDTH
+                    width = CANVAS_WIDTH
+                    startY = (CANVAS_WIDTH - height) / 2
+                } else {
+                    width =  width / height * CANVAS_WIDTH
+                    height = CANVAS_WIDTH
+                    startX = (CANVAS_WIDTH - width) / 2
+                }
+                ctx.drawImage(img,startX,startY,width,height);
+                getBaseColor(startX,startY,width,height)
+            }
+            e.target.value = null
+        }
+    
+        var baseList = []
+        // 获取基准色
+        function getBaseColor (startX,startY,width,height) {
+            baseList = []
+            const showBox = document.getElementById('showBox')
+            let str = ''
+            // 竖线
+            for (let y = 0; y < height / BLOCK_WIDTH; y++) {
+                for (let x = 0; x < width / BLOCK_WIDTH; x++) {
+                    const targetX = x * BLOCK_WIDTH  + startX
+                    const targetY = y * BLOCK_WIDTH + startY
+                    const blockData =ctx.getImageData(targetX,targetY,BLOCK_WIDTH,BLOCK_WIDTH).data
+                    const rgb = mostBlockColor(blockData)
+                    baseList.push({
+                        x: targetX,
+                        y: targetY,
+                        color: rgb,
+                    })
+                    const domRgb = rgb[0] + ',' + rgb[1] + ',' + rgb[2]
+                    
+                    str += `<div style="width:${BLOCK_WIDTH / BASE_ZOOM}px;height:${BLOCK_WIDTH / BASE_ZOOM}px;background-color:rgb(${domRgb})"></div>`
+                }
+            }
+            // showBox.style.width = (Math.ceil(width / BLOCK_WIDTH) * BLOCK_WIDTH / BASE_ZOOM) + 'px'
+            // showBox.style.height = (Math.ceil(height / BLOCK_WIDTH) * BLOCK_WIDTH / BASE_ZOOM) + 'px'
+            // showBox.innerHTML = str
+        }
+    
+        // 获取平均色
+        function mostBlockColor(blockList) {
+            let r = 0,
+                g = 0,
+                b = 0
+            const len = blockList.length / 4
+            for (let i = 0; i < len; i++) {
+                r += blockList[i * 4];
+                g += blockList[i * 4 + 1];
+                b += blockList[i * 4 + 2];
+            }
+            // 求取平均值
+            r /= len;
+            g /= len;
+            b /= len;
+            // 将最终的值取整
+            r = Math.round(r);
+            g = Math.round(g);
+            b = Math.round(b);
+            return [ r, g, b ]
+        }
+        
+        //栅格线
+        function drawLine (startX,startY,width,height) {
+            ctx.strokeStyle = 'red' ;  //设置线的颜色状态
+            // 竖线
+            for (let i = 1; i <= width / BLOCK_WIDTH; i++) {
+                ctx.moveTo(i* BLOCK_WIDTH + startX,startY);       //设置起点状态
+                ctx.lineTo(i* BLOCK_WIDTH + startX,startY + height);       //设置末端状态
+            }
+            // 横线
+            for (let i = 1; i <= height / BLOCK_WIDTH; i++) {
+                ctx.moveTo(startX,i* BLOCK_WIDTH +startY);       //设置起点状态
+                ctx.lineTo(startX + width,i*BLOCK_WIDTH + startY);       //设置末端状态
+            }
+            ctx.stroke()
+        }
+
+        // 素材上传
+        let materialFile = document.getElementById('materialFile')
+        let totalDom = document.getElementById('total')
+        let start = 0
+        let total = 0
+        // 素材列表
+        let materialList = []
+        materialFile.onchange = function (e) {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext("2d");
+            const files = e.target.files
+            total += files.length
+            totalDom.innerText = start + ' / ' + total
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i]
+                const item = {
+                    url: '', // 文件链接
+                    color: '', // 色值
+                }
+                item.url = window.URL.createObjectURL(file)
+                const img = document.createElement('img')
+                img.src = item.url
+                img.onload = function () {
+                    start++
+                    totalDom.innerText = start + ' / ' + total
+                    ctx.drawImage(img,0,0,BLOCK_WIDTH,BLOCK_WIDTH);
+                    const blockData =ctx.getImageData(0,0,BLOCK_WIDTH, BLOCK_WIDTH).data
+                    item.color = mostBlockColor(blockData)
+                    item.img = img
+                    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_WIDTH)
+                    materialList.push(item)
+                }
+            }
+            e.target.value = null
+        }
+
+        // 合成图片
+        function synthetic () {
+            if (!baseList.length) {
+                alert('请先上传参照~')
+                return
+            }
+            if (!materialList.length) {
+                alert('请上传素材后提点击合成按钮~')
+                return
+            }
+            baseList.forEach(item => {
+                const img = getImg(item.color)
+                ctx.drawImage(img,item.x,item.y,BLOCK_WIDTH,BLOCK_WIDTH);
+            })
+        }
+
+        let getImgObj = {}
+        function getImg (targetColor) {
+            let img = getImgObj[getImgObj]
+            if (img) {
+                return img
+            } else {
+                let diff = Infinity
+                materialList.forEach(item => {
+                    const itemDiff = colorDiff(item.color, targetColor)
+                    if (itemDiff < diff) {
+                        diff = itemDiff
+                        img = item.img
+                    }
+                })
+                return img
+            }
+        }
+
+        function colorDiff (color1, color2) {
+            let d = 0;
+            for (let i = 0; i < color1.length; i++) {
+                d += (color1[i] - color2[i]) ** 2;
+            }
+            return Math.sqrt(d);
+        }
+
+        // 提取图片基色
+        function copy () {
+            var imgData=ctx.getImageData(0,300,50,50);
+            ctx.putImageData(imgData,750,750);
+        }
+
+        function clearCanvas () {
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_WIDTH)
+        }
+
+        function downLoad () {;
+            const dataURL = canvas.toDataURL();
+            const link = document.createElement("a");
+            link.download = fileName;
+            link.href = dataURL;
+            // document.body.appendChild(link);
+            link.click();
+            // document.body.removeChild(link);
+        }
+    </script>
+</html>
+
