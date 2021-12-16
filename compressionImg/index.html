@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            padding-top: 60px;
+            padding-bottom: 60px;
+            width: 500px;
+            margin: 0 auto
+        }
+        .input-box {
+            height: 300px;
+            background-color: yellowgreen;
+        }
+        #input {
+            width: 100%;
+            height: 100%;
+        }
+        .img-list {
+            border: 1px solid #ccc;
+            border-bottom: none;
+        }
+        .img-list .img-item {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #ccc;
+        }
+        .item-name, .item-button {
+            padding: 6px;
+            text-align: center;
+            flex: 1;
+        }
+        .item-name {
+            border-right: 1px solid #ccc;
+        }
+        .down-button {
+            cursor: pointer;
+        }
+        .down-button:hover {
+            opacity: .6;
+            text-decoration: underline;
+        }
+        .del-button {
+            margin-left: 10px;
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="input-box">
+            <input type="file" multiple @change="upload">
+        </div>
+        <div>已上传 <input type="text" v-model="index"></div>
+    
+        <div class="img-list" id="imgList" v-if="dataList && dataList.length">
+            <div class="img-item">
+                <div class="item-name"><b>文件名称</b></div>
+                <div class="item-button">
+                    <b>操作</b>
+                </div>
+            </div>
+
+            <div class="img-item" v-for="(item, index) in dataList" :key="index">
+                <div class="item-name">{{item.name}}</div>
+                <div class="item-button">
+                    <span class="down-button" @click="downLoad(item)">下载</span>
+                    <span class="down-button del-button" @click="delItem(index)">删除</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="down-button" v-if="dataList && dataList.length">
+            <span @click="downloadAll">下载全部</span>
+            <span @click="clearAll" style="margin-left:10px;">清空全部</span>
+        </div>
+
+    </div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/vue"></script>
+<script src="./jszip.min.js"></script>
+<script src="./filesave.js"></script>
+<script>
+    (function () {
+        var app = new Vue({
+            el: '#app',
+
+            data: {
+                index: 0,
+                current: 0,
+                dataList: [],
+                fileNameList: []
+            },
+
+            methods: {
+                upload (e) {
+                    const fileList = [...e.target.files]
+                    fileList.forEach(file => {
+                        const fileName = file.name
+                        if (!this.fileNameList.includes(fileName)) {
+                            this.canvasDrawImg(file, (res) => {
+                                this.dataList.push(res)
+                                this.index++
+                            })
+                            this.fileNameList.push(fileName)
+                        } else {
+                            console.log(fileName + '重复了')
+                        }
+                    })
+                    e.target.value = null
+                },
+
+                downLoad (item) {
+                    var a = document.createElement('a');
+                    var url = window.URL.createObjectURL(item.file);
+                    var filename = item.name
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                },
+
+                delItem (index) {
+                    this.dataList.splice(index, 1)
+                },
+
+                downloadAll () {
+                    var zip = new JSZip();
+                    const name = `${this.current + 1}-${this.index}`
+                    this.dataList.forEach(item => {
+                        var img = zip.folder(name);
+                        img.file(item.name, item.file);
+                    })
+                    zip.generateAsync({type:"blob"})
+                        .then((content) => {
+                            saveAs(content, name + '.zip');
+                        });
+                },
+
+                clearAll () {
+                    this.dataList = []
+                    this.current = Number(this.index)
+                },
+
+                canvasDrawImg (file, fn, option = {}) {
+                    let reader = new FileReader()
+                    reader.readAsDataURL(file)
+                    reader.onloadend = () => {
+                        option.name = file.name
+                        this.canvasDataURL(reader.result, fn, option)
+                    }
+                },
+
+                canvasDataURL (path, fn, option = {quality: .2})  {
+                    let img = new Image()
+                    img.src = path
+                    img.onload = () => {
+                        let that = img
+                        // 默认按比例压缩
+                        let w = that.width,
+                            h = that.height,
+                            scale = w / h
+                        w = option.width || w
+                        h = option.height || (w / scale)
+                        //生成canvas
+                        let canvas = document.createElement('canvas')
+                        let ctx = canvas.getContext('2d')
+                        canvas.width = w
+                        canvas.height = h
+                        ctx.drawImage(that, 0, 0, w, h);
+                        let quality
+                        if(option.quality && option.quality <= 1 && option.quality > 0){
+                            quality = option.quality
+                        }
+                        // quality值越小，所绘制出的图像越模糊
+                        let base64 = canvas.toDataURL('image/jpeg', quality)
+                        // 回调函数返回base64的值
+                        let obj = {
+                            name: option.name,
+                            url: base64,
+                            file: this.convertBase64UrlToBlob(base64)
+                        }
+                        fn(obj)
+                    }
+                },
+
+                convertBase64UrlToBlob (urlData) {
+                    let arr = urlData.split(',')
+                    let mime = arr[0].match(/:(.*?);/)[1]
+                    let bstr = atob(arr[1])
+                    let n = bstr.length
+                    let u8arr = new Uint8Array(n)
+                    while(n--){
+                        u8arr[n] = bstr.charCodeAt(n)
+                    }
+                    return new Blob([u8arr], {type:mime})
+                }
+            },
+        })
+    })()
+</script>
+</html>
