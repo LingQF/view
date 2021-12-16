@@ -17,6 +17,14 @@
             margin-left: 20px;
             flex: 1;
         }
+        .canvas-box {
+            border:1px solid #d3d3d3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 800px;
+            height: 800px;
+        }
         canvas {
             width: 800px;
             height: 800px;
@@ -68,9 +76,11 @@
     <body>
         <div class="flex-box">
             <div class="flex-left">
-                <canvas id="myCanvas" style="border:1px solid #d3d3d3;">
-                    您的浏览器不支持 HTML5 canvas 标签。
-                </canvas>
+                <div class="canvas-box">
+                    <canvas id="myCanvas">
+                        您的浏览器不支持 HTML5 canvas 标签。
+                    </canvas>
+                </div>
                 <div id="showBox"></div>
             </div>
             <div class="flex-right">
@@ -105,6 +115,7 @@
         var ctx = canvas.getContext("2d");
         canvas.width = CANVAS_WIDTH
         canvas.height = CANVAS_WIDTH
+
         var fileName = ''
         var fileDom = document.getElementById('file')
         fileDom.onchange = function (e) {
@@ -117,34 +128,34 @@
             img.onload = function () {
                 let width = img.width
                 let height = img.height
-                let startX = 0
-                let startY= 0
                 if (width > height) {
                     height =  height / width * CANVAS_WIDTH
                     width = CANVAS_WIDTH
-                    startY = (CANVAS_WIDTH - height) / 2
                 } else {
                     width =  width / height * CANVAS_WIDTH
                     height = CANVAS_WIDTH
-                    startX = (CANVAS_WIDTH - width) / 2
                 }
-                ctx.drawImage(img,startX,startY,width,height);
-                getBaseColor(startX,startY,width,height)
+                canvas.style.width = width / BASE_ZOOM + 'px'
+                canvas.style.height = height / BASE_ZOOM + 'px'
+                canvas.width = width
+                canvas.height = height
+                ctx.drawImage(img,0,0,width,height);
+                getBaseColor(width,height)
             }
             e.target.value = null
         }
     
         var baseList = []
         // 获取基准色
-        function getBaseColor (startX,startY,width,height) {
+        function getBaseColor (width,height) {
             baseList = []
             const showBox = document.getElementById('showBox')
             let str = ''
             // 竖线
             for (let y = 0; y < height / BLOCK_WIDTH; y++) {
                 for (let x = 0; x < width / BLOCK_WIDTH; x++) {
-                    const targetX = x * BLOCK_WIDTH  + startX
-                    const targetY = y * BLOCK_WIDTH + startY
+                    const targetX = x * BLOCK_WIDTH
+                    const targetY = y * BLOCK_WIDTH
                     const blockData =ctx.getImageData(targetX,targetY,BLOCK_WIDTH,BLOCK_WIDTH).data
                     const rgb = mostBlockColor(blockData)
                     baseList.push({
@@ -157,6 +168,7 @@
                     str += `<div style="width:${BLOCK_WIDTH / BASE_ZOOM}px;height:${BLOCK_WIDTH / BASE_ZOOM}px;background-color:rgb(${domRgb})"></div>`
                 }
             }
+            // 模糊后的样式
             // showBox.style.width = (Math.ceil(width / BLOCK_WIDTH) * BLOCK_WIDTH / BASE_ZOOM) + 'px'
             // showBox.style.height = (Math.ceil(height / BLOCK_WIDTH) * BLOCK_WIDTH / BASE_ZOOM) + 'px'
             // showBox.innerHTML = str
@@ -183,22 +195,6 @@
             b = Math.round(b);
             return [ r, g, b ]
         }
-        
-        //栅格线
-        function drawLine (startX,startY,width,height) {
-            ctx.strokeStyle = 'red' ;  //设置线的颜色状态
-            // 竖线
-            for (let i = 1; i <= width / BLOCK_WIDTH; i++) {
-                ctx.moveTo(i* BLOCK_WIDTH + startX,startY);       //设置起点状态
-                ctx.lineTo(i* BLOCK_WIDTH + startX,startY + height);       //设置末端状态
-            }
-            // 横线
-            for (let i = 1; i <= height / BLOCK_WIDTH; i++) {
-                ctx.moveTo(startX,i* BLOCK_WIDTH +startY);       //设置起点状态
-                ctx.lineTo(startX + width,i*BLOCK_WIDTH + startY);       //设置末端状态
-            }
-            ctx.stroke()
-        }
 
         // 素材上传
         let materialFile = document.getElementById('materialFile')
@@ -209,6 +205,8 @@
         let materialList = []
         materialFile.onchange = function (e) {
             const canvas = document.createElement('canvas')
+            canvas.width = BLOCK_WIDTH
+            canvas.height = BLOCK_WIDTH
             const ctx = canvas.getContext("2d");
             const files = e.target.files
             total += files.length
@@ -225,10 +223,27 @@
                 img.onload = function () {
                     start++
                     totalDom.innerText = start + ' / ' + total
-                    ctx.drawImage(img,0,0,BLOCK_WIDTH,BLOCK_WIDTH);
+
+                    let sx = 0
+                    let sy = 0
+                    let sw = img.width
+                    let sh = img.height
+                    if (sw > sh) {
+                        sx = (sw - sh) / 2
+                        sw = sh
+                    } else {
+                        sy = (sh - sw) / 2
+                        sh =  sw
+                    }
+                    ctx.drawImage(img, sx, sy, sw, sh,0 ,0,BLOCK_WIDTH, BLOCK_WIDTH);
+
                     const blockData =ctx.getImageData(0,0,BLOCK_WIDTH, BLOCK_WIDTH).data
                     item.color = mostBlockColor(blockData)
                     item.img = img
+                    item.sx = sx
+                    item.sy = sy
+                    item.sw = sw
+                    item.sh = sh
                     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_WIDTH)
                     materialList.push(item)
                 }
@@ -247,26 +262,27 @@
                 return
             }
             baseList.forEach(item => {
-                const img = getImg(item.color)
-                ctx.drawImage(img,item.x,item.y,BLOCK_WIDTH,BLOCK_WIDTH);
+                const imgItem = getImg(item.color)
+                ctx.drawImage(imgItem.img, imgItem.sx, imgItem.sy, imgItem.sw, imgItem.sh,item.x,item.y,BLOCK_WIDTH,BLOCK_WIDTH);
             })
         }
 
         let getImgObj = {}
         function getImg (targetColor) {
-            let img = getImgObj[getImgObj]
-            if (img) {
-                return img
+            let targetItem = getImgObj[targetColor]
+            if (targetItem) {
+                return targetItem
             } else {
                 let diff = Infinity
                 materialList.forEach(item => {
                     const itemDiff = colorDiff(item.color, targetColor)
                     if (itemDiff < diff) {
                         diff = itemDiff
-                        img = item.img
+                        targetItem = item
                     }
                 })
-                return img
+                getImgObj[targetColor] = targetItem
+                return targetItem
             }
         }
 
@@ -288,14 +304,14 @@
             ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_WIDTH)
         }
 
+        // 下载
         function downLoad () {;
             const dataURL = canvas.toDataURL();
             const link = document.createElement("a");
             link.download = fileName;
             link.href = dataURL;
-            // document.body.appendChild(link);
             link.click();
-            // document.body.removeChild(link);
+            link = null
         }
     </script>
 </html>
